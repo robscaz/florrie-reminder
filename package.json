@@ -1,0 +1,13 @@
+{
+  "name": "florrie-reminder",
+  "version": "1.0.0",
+  "description": "Daily meal reminder for Florrie's Food Tracker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "node-fetch": "^2.7.0"
+  }
+}
