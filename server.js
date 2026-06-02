@@ -6,40 +6,51 @@ const FIREBASE_SECRET  = "Yh9mPzEnEXR8MBW5AOzBavcLoGWuujKWmW41qSKg";
 const ONESIGNAL_APP_ID = "b75dbfaa-fa6e-467e-88c4-8828565c5ffe";
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 
-function getStartOfDayUK() {
-  var now = new Date();
-  var ukOffset = isDST(now) ? 60 : 0;
-  var ukNow = new Date(now.getTime() + ukOffset * 60000);
-  ukNow.setHours(0, 0, 0, 0);
-  return ukNow.getTime() - ukOffset * 60000;
+// Get today's date string in UK time e.g. "2026-05-30"
+function getTodayUK() {
+  return new Date().toLocaleDateString("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).split("/").reverse().join("-"); // converts "30/05/2026" to "2026-05-30"
 }
 
-function isDST(date) {
-  var jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
-  var jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset();
-  return Math.max(jan, jul) !== date.getTimezoneOffset();
+// Get the date string for a timestamp
+function getDateUK(ts) {
+  return new Date(ts).toLocaleDateString("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).split("/").reverse().join("-");
 }
 
 async function checkAndNotify() {
-  console.log("Checking if anything logged today...");
+  var today = getTodayUK();
+  console.log("Checking logs for today:", today);
+
   try {
-    var startOfDay = getStartOfDayUK();
     var res = await fetch(FIREBASE_URL + "/logs.json?auth=" + FIREBASE_SECRET);
     var data = await res.json();
+
     var loggedToday = false;
     if (data && typeof data === "object") {
       loggedToday = Object.values(data).some(function(log) {
-        return log.timestamp && log.timestamp >= startOfDay;
+        if (!log.timestamp) return false;
+        return getDateUK(log.timestamp) === today;
       });
     }
-    console.log("Logged today:", loggedToday, "| Start of day:", new Date(startOfDay).toISOString());
+
+    console.log("Logged today:", loggedToday, "| Today is:", today);
+
     if (!loggedToday) {
       await sendNotification();
     } else {
       console.log("Already logged today — no notification sent.");
     }
   } catch (err) {
-    console.error("Error:", err);
+    console.error("Error checking logs:", err);
   }
 }
 
@@ -61,25 +72,25 @@ async function sendNotification() {
       })
     });
     var result = await res.json();
-    console.log("Notification result:", JSON.stringify(result));
+    console.log("Notification sent:", JSON.stringify(result));
   } catch (err) {
-    console.error("Send error:", err);
+    console.error("Error sending notification:", err);
   }
 }
 
-// Schedule 7pm UK time
+// Schedule 7pm UK time every day
 cron.schedule("0 19 * * *", function() {
   console.log("7pm UK check triggered");
   checkAndNotify();
 }, { timezone: "Europe/London" });
 
-// HTTP server with test endpoints
+// HTTP server
 var http = require("http");
 http.createServer(function(req, res) {
   res.setHeader("Content-Type", "text/plain");
   if (req.url === "/test") {
     res.writeHead(200);
-    res.end("Running check — see Render logs for result.");
+    res.end("Running check — see Render logs.");
     checkAndNotify();
   } else if (req.url === "/force") {
     res.writeHead(200);
@@ -87,7 +98,7 @@ http.createServer(function(req, res) {
     sendNotification();
   } else {
     res.writeHead(200);
-    res.end("Florrie reminder running. Use /test or /force");
+    res.end("Florrie reminder running. Endpoints: /test /force");
   }
 }).listen(process.env.PORT || 3000, function() {
   console.log("Server started. Endpoints: /test /force");
